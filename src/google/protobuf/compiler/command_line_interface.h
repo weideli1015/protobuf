@@ -428,6 +428,7 @@ class PROTOC_EXPORT CommandLineInterface {
   // dependency file will be written. Otherwise, empty.
   std::string dependency_out_name_;
 
+  bool experimental_editions_ = false;
 
   // True if --include_imports was given, meaning that we should
   // write all transitive dependencies to the DescriptorSet.  Otherwise, only

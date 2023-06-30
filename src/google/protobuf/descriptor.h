@@ -258,6 +258,23 @@ class PROTOBUF_EXPORT SymbolBase {
 template <int N>
 class PROTOBUF_EXPORT SymbolBaseN : public SymbolBase {};
 
+// This class is for internal use only and provides access to the FeatureSets
+// defined on descriptors.  These features are not designed to be stable, and
+// depending directly on them (vs the public descriptor APIs) is not safe.
+class InternalFeatureHelper {
+ public:
+  template <typename DescriptorT>
+  static const FeatureSet& GetFeatures(const DescriptorT& desc) {
+    return desc.features();
+  }
+
+ private:
+  friend class ::google::protobuf::compiler::CodeGenerator;
+  template <typename DescriptorT>
+  static const FeatureSet& GetRawFeatures(const DescriptorT& desc) {
+    return *desc.proto_features_;
+  }
+};
 
 }  // namespace internal
 
@@ -473,7 +490,15 @@ class PROTOBUF_EXPORT Descriptor : private internal::SymbolBase {
 
    private:
     const Descriptor* containing_type_;
+    const FeatureSet* proto_features_;
+    const FeatureSet* merged_features_;
 
+    // Get the merged features that apply to this extension range.  These are
+    // specified in the .proto file through the feature options in the message
+    // definition. Allowed features are defined by Features in descriptor.proto,
+    // along with any backend-specific extensions to it.
+    const FeatureSet& features() const { return *merged_features_; }
+    friend class internal::InternalFeatureHelper;
 
     // Walks up the descriptor tree to generate the source location path
     // to this descriptor from the file root.
@@ -598,6 +623,12 @@ class PROTOBUF_EXPORT Descriptor : private internal::SymbolBase {
   friend class io::Printer;
   friend class compiler::cpp::Formatter;
 
+  // Get the merged features that apply to this message type.  These are
+  // specified in the .proto file through the feature options in the message
+  // definition.  Allowed features are defined by Features in descriptor.proto,
+  // along with any backend-specific extensions to it.
+  const FeatureSet& features() const { return *merged_features_; }
+  friend class internal::InternalFeatureHelper;
 
   // Fill the json_name field of FieldDescriptorProto.
   void CopyJsonNameTo(DescriptorProto* proto) const;
@@ -637,6 +668,8 @@ class PROTOBUF_EXPORT Descriptor : private internal::SymbolBase {
   const FileDescriptor* file_;
   const Descriptor* containing_type_;
   const MessageOptions* options_;
+  const FeatureSet* proto_features_;
+  const FeatureSet* merged_features_;
 
   // These arrays are separated from their sizes to minimize padding on 64-bit.
   FieldDescriptor* fields_;
@@ -673,7 +706,7 @@ class PROTOBUF_EXPORT Descriptor : private internal::SymbolBase {
   friend class FileDescriptor;
 };
 
-PROTOBUF_INTERNAL_CHECK_CLASS_SIZE(Descriptor, 136);
+PROTOBUF_INTERNAL_CHECK_CLASS_SIZE(Descriptor, 152);
 
 // Describes a single field of a message.  To get the descriptor for a given
 // field, first get the Descriptor for the message in which it is defined,
@@ -987,6 +1020,12 @@ class PROTOBUF_EXPORT FieldDescriptor : private internal::SymbolBase {
 
  private:
 
+  // Get the merged features that apply to this field.  These are specified in
+  // the .proto file through the feature options in the message definition.
+  // Allowed features are defined by Features in descriptor.proto, along with
+  // any backend-specific extensions to it.
+  const FeatureSet& features() const { return *merged_features_; }
+  friend class internal::InternalFeatureHelper;
 
   // Fill the json_name field of FieldDescriptorProto.
   void CopyJsonNameTo(FieldDescriptorProto* proto) const;
@@ -1055,6 +1094,8 @@ class PROTOBUF_EXPORT FieldDescriptor : private internal::SymbolBase {
     mutable const EnumDescriptor* enum_type;
   } type_descriptor_;
   const FieldOptions* options_;
+  const FeatureSet* proto_features_;
+  const FeatureSet* merged_features_;
   // IMPORTANT:  If you add a new field, make sure to search for all instances
   // of Allocate<FieldDescriptor>() and AllocateArray<FieldDescriptor>() in
   // descriptor.cc and update them to initialize the field.
@@ -1089,7 +1130,7 @@ class PROTOBUF_EXPORT FieldDescriptor : private internal::SymbolBase {
   friend class OneofDescriptor;
 };
 
-PROTOBUF_INTERNAL_CHECK_CLASS_SIZE(FieldDescriptor, 72);
+PROTOBUF_INTERNAL_CHECK_CLASS_SIZE(FieldDescriptor, 88);
 
 // Describes a oneof defined in a message type.
 class PROTOBUF_EXPORT OneofDescriptor : private internal::SymbolBase {
@@ -1156,6 +1197,12 @@ class PROTOBUF_EXPORT OneofDescriptor : private internal::SymbolBase {
 
  private:
 
+  // Get the merged features that apply to this oneof.  These are specified in
+  // the .proto file through the feature options in the oneof definition.
+  // Allowed features are defined by Features in descriptor.proto, along with
+  // any backend-specific extensions to it.
+  const FeatureSet& features() const { return *merged_features_; }
+  friend class internal::InternalFeatureHelper;
 
   // See Descriptor::DebugString().
   void DebugString(int depth, std::string* contents,
@@ -1171,6 +1218,8 @@ class PROTOBUF_EXPORT OneofDescriptor : private internal::SymbolBase {
   const std::string* all_names_;
   const Descriptor* containing_type_;
   const OneofOptions* options_;
+  const FeatureSet* proto_features_;
+  const FeatureSet* merged_features_;
   const FieldDescriptor* fields_;
 
   // IMPORTANT:  If you add a new field, make sure to search for all instances
@@ -1184,7 +1233,7 @@ class PROTOBUF_EXPORT OneofDescriptor : private internal::SymbolBase {
   friend class FieldDescriptor;
 };
 
-PROTOBUF_INTERNAL_CHECK_CLASS_SIZE(OneofDescriptor, 40);
+PROTOBUF_INTERNAL_CHECK_CLASS_SIZE(OneofDescriptor, 56);
 
 // Describes an enum type defined in a .proto file.  To get the EnumDescriptor
 // for a generated enum type, call TypeName_descriptor().  Use DescriptorPool
@@ -1315,6 +1364,12 @@ class PROTOBUF_EXPORT EnumDescriptor : private internal::SymbolBase {
   // Allow access to FindValueByNumberCreatingIfUnknown.
   friend class descriptor_unittest::DescriptorTest;
 
+  // Get the merged features that apply to this enum type.  These are specified
+  // in the .proto file through the feature options in the message definition.
+  // Allowed features are defined by Features in descriptor.proto, along with
+  // any backend-specific extensions to it.
+  const FeatureSet& features() const { return *merged_features_; }
+  friend class internal::InternalFeatureHelper;
 
   // Looks up a value by number.  If the value does not exist, dynamically
   // creates a new EnumValueDescriptor for that value, assuming that it was
@@ -1356,6 +1411,8 @@ class PROTOBUF_EXPORT EnumDescriptor : private internal::SymbolBase {
   const FileDescriptor* file_;
   const Descriptor* containing_type_;
   const EnumOptions* options_;
+  const FeatureSet* proto_features_;
+  const FeatureSet* merged_features_;
   EnumValueDescriptor* values_;
 
   int reserved_range_count_;
@@ -1379,7 +1436,7 @@ class PROTOBUF_EXPORT EnumDescriptor : private internal::SymbolBase {
   friend class Reflection;
 };
 
-PROTOBUF_INTERNAL_CHECK_CLASS_SIZE(EnumDescriptor, 72);
+PROTOBUF_INTERNAL_CHECK_CLASS_SIZE(EnumDescriptor, 88);
 
 // Describes an individual enum constant of a particular type.  To get the
 // EnumValueDescriptor for a given enum value, first get the EnumDescriptor
@@ -1442,6 +1499,12 @@ class PROTOBUF_EXPORT EnumValueDescriptor : private internal::SymbolBaseN<0>,
   friend class io::Printer;
   friend class compiler::cpp::Formatter;
 
+  // Get the merged features that apply to this enum value.  These are specified
+  // in the .proto file through the feature options in the message definition.
+  // Allowed features are defined by Features in descriptor.proto, along with
+  // any backend-specific extensions to it.
+  const FeatureSet& features() const { return *merged_features_; }
+  friend class internal::InternalFeatureHelper;
 
   // See Descriptor::DebugString().
   void DebugString(int depth, std::string* contents,
@@ -1456,6 +1519,8 @@ class PROTOBUF_EXPORT EnumValueDescriptor : private internal::SymbolBaseN<0>,
   const std::string* all_names_;
   const EnumDescriptor* type_;
   const EnumValueOptions* options_;
+  const FeatureSet* proto_features_;
+  const FeatureSet* merged_features_;
   // IMPORTANT:  If you add a new field, make sure to search for all instances
   // of Allocate<EnumValueDescriptor>() and AllocateArray<EnumValueDescriptor>()
   // in descriptor.cc and update them to initialize the field.
@@ -1469,7 +1534,7 @@ class PROTOBUF_EXPORT EnumValueDescriptor : private internal::SymbolBaseN<0>,
   friend class Reflection;
 };
 
-PROTOBUF_INTERNAL_CHECK_CLASS_SIZE(EnumValueDescriptor, 32);
+PROTOBUF_INTERNAL_CHECK_CLASS_SIZE(EnumValueDescriptor, 48);
 
 // Describes an RPC service. Use DescriptorPool to construct your own
 // descriptors.
@@ -1531,6 +1596,12 @@ class PROTOBUF_EXPORT ServiceDescriptor : private internal::SymbolBase {
   friend class io::Printer;
   friend class compiler::cpp::Formatter;
 
+  // Get the merged features that apply to this service type.  These are
+  // specified in the .proto file through the feature options in the service
+  // definition. Allowed features are defined by Features in descriptor.proto,
+  // along with any backend-specific extensions to it.
+  const FeatureSet& features() const { return *merged_features_; }
+  friend class internal::InternalFeatureHelper;
 
   // See Descriptor::DebugString().
   void DebugString(std::string* contents,
@@ -1544,6 +1615,8 @@ class PROTOBUF_EXPORT ServiceDescriptor : private internal::SymbolBase {
   const std::string* all_names_;
   const FileDescriptor* file_;
   const ServiceOptions* options_;
+  const FeatureSet* proto_features_;
+  const FeatureSet* merged_features_;
   MethodDescriptor* methods_;
   int method_count_;
   // IMPORTANT:  If you add a new field, make sure to search for all instances
@@ -1557,7 +1630,7 @@ class PROTOBUF_EXPORT ServiceDescriptor : private internal::SymbolBase {
   friend class MethodDescriptor;
 };
 
-PROTOBUF_INTERNAL_CHECK_CLASS_SIZE(ServiceDescriptor, 48);
+PROTOBUF_INTERNAL_CHECK_CLASS_SIZE(ServiceDescriptor, 64);
 
 // Describes an individual service method.  To obtain a MethodDescriptor given
 // a service, first get its ServiceDescriptor, then call
@@ -1624,6 +1697,12 @@ class PROTOBUF_EXPORT MethodDescriptor : private internal::SymbolBase {
   friend class io::Printer;
   friend class compiler::cpp::Formatter;
 
+  // Get the merged features that apply to this method.  These are specified in
+  // the .proto file through the feature options in the method definition.
+  // Allowed features are defined by Features in descriptor.proto, along with
+  // any backend-specific extensions to it.
+  const FeatureSet& features() const { return *merged_features_; }
+  friend class internal::InternalFeatureHelper;
 
   // See Descriptor::DebugString().
   void DebugString(int depth, std::string* contents,
@@ -1641,6 +1720,8 @@ class PROTOBUF_EXPORT MethodDescriptor : private internal::SymbolBase {
   mutable internal::LazyDescriptor input_type_;
   mutable internal::LazyDescriptor output_type_;
   const MethodOptions* options_;
+  const FeatureSet* proto_features_;
+  const FeatureSet* merged_features_;
   // IMPORTANT:  If you add a new field, make sure to search for all instances
   // of Allocate<MethodDescriptor>() and AllocateArray<MethodDescriptor>() in
   // descriptor.cc and update them to initialize the field.
@@ -1651,7 +1732,7 @@ class PROTOBUF_EXPORT MethodDescriptor : private internal::SymbolBase {
   friend class ServiceDescriptor;
 };
 
-PROTOBUF_INTERNAL_CHECK_CLASS_SIZE(MethodDescriptor, 64);
+PROTOBUF_INTERNAL_CHECK_CLASS_SIZE(MethodDescriptor, 80);
 
 // Describes a whole .proto file.  To get the FileDescriptor for a compiled-in
 // file, get the descriptor for something defined in that file and call
@@ -1750,6 +1831,7 @@ class PROTOBUF_EXPORT FileDescriptor : private internal::SymbolBase {
     SYNTAX_UNKNOWN = 0,
     SYNTAX_PROTO2 = 2,
     SYNTAX_PROTO3 = 3,
+    SYNTAX_EDITIONS = 99,
   };
   PROTOBUF_IGNORE_DEPRECATION_START
   ABSL_DEPRECATED(
@@ -1769,6 +1851,8 @@ class PROTOBUF_EXPORT FileDescriptor : private internal::SymbolBase {
   PROTOBUF_IGNORE_DEPRECATION_STOP
 
  public:
+  // Returns an unspecified value if syntax() is not SYNTAX_EDITIONS.
+  absl::string_view edition() const;
 
   // Find a top-level message type by name (not full_name).  Returns nullptr if
   // not found.
@@ -1847,7 +1931,14 @@ class PROTOBUF_EXPORT FileDescriptor : private internal::SymbolBase {
   const std::string* name_;
   const std::string* package_;
   const DescriptorPool* pool_;
+  const std::string* edition_ = nullptr;
 
+  // Get the merged features that apply to this file.  These are specified in
+  // the .proto file through the feature options in the message definition.
+  // Allowed features are defined by FeatureSet in descriptor.proto, along with
+  // any backend-specific extensions to it.
+  const FeatureSet& features() const { return *merged_features_; }
+  friend class internal::InternalFeatureHelper;
 
   // dependencies_once_ contain a once_flag followed by N NUL terminated
   // strings. Dependencies that do not need to be loaded will be empty. ie just
@@ -1872,6 +1963,8 @@ class PROTOBUF_EXPORT FileDescriptor : private internal::SymbolBase {
   ServiceDescriptor* services_;
   FieldDescriptor* extensions_;
   const FileOptions* options_;
+  const FeatureSet* proto_features_;
+  const FeatureSet* merged_features_;
 
   const FileDescriptorTables* tables_;
   const SourceCodeInfo* source_code_info_;
@@ -1893,7 +1986,7 @@ class PROTOBUF_EXPORT FileDescriptor : private internal::SymbolBase {
   friend class ServiceDescriptor;
 };
 
-PROTOBUF_INTERNAL_CHECK_CLASS_SIZE(FileDescriptor, 152);
+PROTOBUF_INTERNAL_CHECK_CLASS_SIZE(FileDescriptor, 168);
 
 // ===================================================================
 
@@ -2039,7 +2132,8 @@ class PROTOBUF_EXPORT DescriptorPool {
       OPTION_NAME,    // name in assignment
       OPTION_VALUE,   // value in option assignment
       IMPORT,         // import error
-      OTHER      // some other problem
+      EDITIONS,       // editions-related error
+      OTHER           // some other problem
     };
     static absl::string_view ErrorLocationName(ErrorLocation location);
 

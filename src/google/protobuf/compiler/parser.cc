@@ -662,6 +662,7 @@ bool Parser::Parse(io::Tokenizer* input, FileDescriptorProto* file) {
                                        DescriptorPool::ErrorCollector::OTHER);
 
     if (require_syntax_identifier_ || LookingAt("syntax")
+        || LookingAt("edition")
     ) {
       if (!ParseSyntaxIdentifier(file, root_location)) {
         // Don't attempt to parse the file if we didn't recognize the syntax
@@ -671,6 +672,9 @@ bool Parser::Parse(io::Tokenizer* input, FileDescriptorProto* file) {
       // Store the syntax into the file.
       if (file != nullptr) {
         file->set_syntax(syntax_identifier_);
+        if (syntax_identifier_ == "editions") {
+          file->set_edition(edition_);
+        }
       }
     } else if (!stop_after_syntax_identifier_) {
       ABSL_LOG(WARNING) << "No syntax specified for the proto file: "
@@ -710,9 +714,16 @@ bool Parser::ParseSyntaxIdentifier(const FileDescriptorProto* file,
                                    const LocationRecorder& parent) {
   LocationRecorder syntax_location(parent,
                                    FileDescriptorProto::kSyntaxFieldNumber);
+  syntax_location.RecordLegacyLocation(
+      file, DescriptorPool::ErrorCollector::EDITIONS);
+  bool has_edition = false;
+  if (TryConsume("edition")) {
+    has_edition = true;
+  } else {
     DO(Consume("syntax",
                "File must begin with a syntax statement, e.g. 'syntax = "
                "\"proto2\";'."));
+  }
 
   DO(Consume("="));
   io::Tokenizer::Token syntax_token = input_->current();
@@ -720,6 +731,17 @@ bool Parser::ParseSyntaxIdentifier(const FileDescriptorProto* file,
   DO(ConsumeString(&syntax, "Expected syntax identifier."));
   DO(ConsumeEndOfDeclaration(";", &syntax_location));
 
+  (has_edition ? edition_ : syntax_identifier_) = syntax;
+  if (has_edition) {
+    if (syntax.empty()) {
+      RecordError(syntax_token.line, syntax_token.column,
+                  "A file's edition must be a nonempty string.");
+      return false;
+    }
+    edition_ = syntax;
+    syntax_identifier_ = "editions";
+    return true;
+  }
   syntax_identifier_ = syntax;
   if (syntax != "proto2" && syntax != "proto3" &&
       !stop_after_syntax_identifier_) {
@@ -2307,6 +2329,16 @@ bool Parser::ParseLabel(FieldDescriptorProto::Label* label,
       !LookingAt("required")) {
     return false;
   }
+  if (LookingAt("optional") && syntax_identifier_ == "editions") {
+    RecordError(
+        "Label \"optional\" is not supported in editions.  By default, all "
+        "singular fields have presence unless features.field_presence is set.");
+  }
+  if (LookingAt("required") && syntax_identifier_ == "editions") {
+    RecordError(
+        "Label \"required\" is not supported in editions, use "
+        "features.field_presence = LEGACY_REQUIRED.");
+  }
 
   LocationRecorder location(field_location,
                             FieldDescriptorProto::kLabelFieldNumber);
@@ -2326,6 +2358,13 @@ bool Parser::ParseType(FieldDescriptorProto::Type* type,
   const auto& type_names_table = GetTypeNameTable();
   auto iter = type_names_table.find(input_->current().text);
   if (iter != type_names_table.end()) {
+    if (syntax_identifier_ == "editions" &&
+        iter->second == FieldDescriptorProto::TYPE_GROUP) {
+      RecordError(
+          "Group syntax is no longer supported in editions. To get group "
+          "behavior you can specify features.message_encoding = DELIMITED on a "
+          "message field.");
+    }
     *type = iter->second;
     input_->Next();
   } else {

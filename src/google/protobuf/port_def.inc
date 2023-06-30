@@ -242,7 +242,7 @@ static_assert(PROTOBUF_ABSL_MIN(20230125, 3),
 // Owner: ezb@
 #define PROTOBUF_FUTURE_REMOVE_CONST_REPEATEDFIELD_GETARENA_API 1
 
-// Used to remove Protobuf editions feature.
+// Used to remove upcoming Protobuf editions changes.
 // Owner: mkruskal@
 #define PROTOBUF_FUTURE_EDITIONS 1
 

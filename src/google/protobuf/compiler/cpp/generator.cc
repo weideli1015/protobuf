@@ -46,6 +46,7 @@
 #include "absl/strings/string_view.h"
 #include "google/protobuf/compiler/cpp/file.h"
 #include "google/protobuf/compiler/cpp/helpers.h"
+#include "google/protobuf/cpp_features.pb.h"
 #include "google/protobuf/descriptor.pb.h"
 #include "google/protobuf/descriptor_visitor.h"
 
@@ -364,6 +365,23 @@ bool CppGenerator::Generate(const FileDescriptor* file,
 
 absl::Status CppGenerator::ValidateFeatures(const FileDescriptor* file) const {
   absl::Status status = absl::OkStatus();
+  google::protobuf::internal::VisitDescriptors(*file, [&](const FieldDescriptor& field) {
+    const FeatureSet& source_features = GetSourceFeatures(field);
+    const FeatureSet& raw_features = GetSourceRawFeatures(field);
+    if (raw_features.GetExtension(::pb::cpp).has_legacy_closed_enum() &&
+        field.cpp_type() != FieldDescriptor::CPPTYPE_ENUM) {
+      status = absl::FailedPreconditionError(absl::StrCat(
+          "Field ", field.full_name(),
+          " specifies the legacy_closed_enum feature but has non-enum type."));
+    }
+    if (field.enum_type() != nullptr &&
+        source_features.GetExtension(::pb::cpp).legacy_closed_enum() &&
+        source_features.field_presence() == FeatureSet::IMPLICIT) {
+      status = absl::FailedPreconditionError(
+          absl::StrCat("Field ", field.full_name(),
+                       " has a closed enum type with implicit presence."));
+    }
+  });
   return status;
 }
 

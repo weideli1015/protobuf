@@ -700,6 +700,9 @@ void FileGenerator::EmitFileDescription(io::Printer* p) const {
     case FileDescriptorLegacy::Syntax::SYNTAX_PROTO3:
       syntax = "GPBFileSyntaxProto3";
       break;
+    case FileDescriptorLegacy::Syntax::SYNTAX_EDITIONS:
+      syntax = "GPBFileSyntaxProtoEditions";
+      break;
   }
 
   p->Emit({{"file_description_name", file_description_name_},

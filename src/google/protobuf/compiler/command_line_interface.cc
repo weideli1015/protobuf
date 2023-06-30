@@ -1551,6 +1551,19 @@ bool CommandLineInterface::ParseInputFiles(
     }
     parsed_files->push_back(parsed_file);
 
+    if (!experimental_editions_ && !IsEarlyEditionsFile(parsed_file->name())) {
+      if (FileDescriptorLegacy(parsed_file).syntax() ==
+          FileDescriptorLegacy::Syntax::SYNTAX_EDITIONS) {
+        std::cerr
+            << parsed_file->name()
+            << ": This file uses editions, but --experimental_editions has not "
+               "been enabled. This syntax is experimental and should be "
+               "avoided."
+            << std::endl;
+        result = false;
+        break;
+      }
+    }
 
     // Enforce --disallow_services.
     if (disallow_services_ && parsed_file->service_count() > 0) {
@@ -1601,6 +1614,7 @@ void CommandLineInterface::Clear() {
   descriptor_set_out_name_.clear();
   dependency_out_name_.clear();
 
+  experimental_editions_ = false;
 
   mode_ = MODE_COMPILE;
   print_mode_ = PRINT_NONE;
@@ -1919,6 +1933,7 @@ bool CommandLineInterface::ParseArgument(const char* arg, std::string* name,
       *name == "--include_imports" || *name == "--include_source_info" ||
       *name == "--retain_options" || *name == "--version" ||
       *name == "--decode_raw" ||
+      *name == "--experimental_editions" ||
       *name == "--print_free_field_numbers" ||
       *name == "--experimental_allow_proto3_optional" ||
       *name == "--deterministic_output" || *name == "--fatal_warnings") {
@@ -2245,6 +2260,12 @@ CommandLineInterface::InterpretArgument(const std::string& name,
 #else
     ::setenv(io::Printer::kProtocCodegenTrace.data(), "yes", 0);
 #endif
+  } else if (name == "--experimental_editions") {
+    // If you're reading this, you're probably wondering what
+    // --experimental_editions is for and thinking of turning it on. This is an
+    // experimental, undocumented, unsupported flag. Enable it at your own risk
+    // (or, just don't!).
+    experimental_editions_ = true;
   } else {
     // Some other flag.  Look it up in the generators list.
     const GeneratorInfo* generator_info = FindGeneratorByFlag(name);
