@@ -44,17 +44,12 @@
 #ifndef GOOGLE_PROTOBUF_REPEATED_PTR_FIELD_H__
 #define GOOGLE_PROTOBUF_REPEATED_PTR_FIELD_H__
 
-#include <utility>
-
-#ifdef _MSC_VER
-// This is required for min/max on VS2013 only.
 #include <algorithm>
-#endif
-
 #include <iterator>
 #include <limits>
 #include <string>
 #include <type_traits>
+#include <utility>
 
 #include "google/protobuf/arena.h"
 #include "google/protobuf/port.h"
@@ -96,6 +91,13 @@ class RepeatedPtrOverPtrsIterator;
 }  // namespace internal
 
 namespace internal {
+
+template <size_t N>
+inline void swap_bytes(unsigned char* PROTOBUF_RESTRICT a,
+                       unsigned char* PROTOBUF_RESTRICT b) {
+  // restrict allows swap_ranges to generate optimized code.
+  std::swap_ranges(a, a + N, b);
+}
 
 // type-traits helper for RepeatedPtrFieldBase: we only want to invoke
 // arena-related "copy if on different arena" behavior if the necessary methods
@@ -307,11 +309,9 @@ class PROTOBUF_EXPORT RepeatedPtrFieldBase {
     ABSL_DCHECK(this != rhs);
 
     // Swap all fields at once.
-    auto temp = std::make_tuple(rhs->arena_, rhs->current_size_,
-                                rhs->total_size_, rhs->rep_);
-    std::tie(rhs->arena_, rhs->current_size_, rhs->total_size_, rhs->rep_) =
-        std::make_tuple(arena_, current_size_, total_size_, rep_);
-    std::tie(arena_, current_size_, total_size_, rep_) = temp;
+    internal::swap_bytes<sizeof(RepeatedPtrFieldBase)>(
+        reinterpret_cast<unsigned char*>(this),
+        reinterpret_cast<unsigned char*>(rhs));
   }
 
   // Prepares the container for adding elements via `AddAllocatedForParse`.
