@@ -974,6 +974,12 @@ message FeatureSet {
     edition_defaults = { edition: "2023", value: "ALLOW" }
   ];
 
+  // This is used to send raw unresolved feature sets to code generators for
+  // feature validation and for runtimes to be able to reconstruct the original
+  // proto file.  These should not be used to make any runtime decisions, as
+  // they do not accurately capture the features enabled.
+  optional FeatureSet original_features = 999 [targets = TARGET_TYPE_UNKNOWN];
+
   extensions 1000;  // for Protobuf C++
   extensions 1001;  // for Protobuf Java
 
