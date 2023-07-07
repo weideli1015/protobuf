@@ -193,12 +193,24 @@ class TaggedStringPtr {
   // Returns true if the contained pointer is null, indicating some error.
   // The Null value is only used during parsing for temporary values.
   // A persisted ArenaStringPtr value is never null.
-  inline bool IsNull() { return ptr_ == nullptr; }
+  inline bool IsNull() const { return ptr_ == nullptr; }
+
+  TaggedStringPtr Copy(Arena* arena) const {
+#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    // TODO(b/290029568): we have existing targets that contain bugs on
+    // referencing stale data, the below test fails under hardening:
+    // net/proto2/contrib/proto_builder/bin/message_builder_test
+    // return IsNull() ? *this : ForceCopy(arena);
+#endif
+    return IsDefault() ? *this : ForceCopy(arena);
+  }
 
  private:
   static inline void assert_aligned(const void* p) {
     ABSL_DCHECK_EQ(reinterpret_cast<uintptr_t>(p) & kMask, 0UL);
   }
+
+  TaggedStringPtr ForceCopy(Arena* arena) const;
 
   inline std::string* TagAs(Type type, std::string* p) {
     ABSL_DCHECK(p != nullptr);
@@ -235,9 +247,30 @@ static_assert(std::is_trivial<TaggedStringPtr>::value,
 // being held, and the mutable and ownership invariants for each type.
 struct PROTOBUF_EXPORT ArenaStringPtr {
   ArenaStringPtr() = default;
+
   constexpr ArenaStringPtr(ExplicitlyConstructedArenaString* default_value,
                            ConstantInitialized)
       : tagged_ptr_(default_value) {}
+
+  ArenaStringPtr(Arena* arena, ExplicitlyConstructedArenaString* default_value)
+      : tagged_ptr_(default_value) {
+#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    assert(default_value->get().empty());
+    Set(absl::string_view(default_value->get()), arena);
+#endif
+  }
+
+  ArenaStringPtr(Arena* arena, ExplicitlyConstructedArenaString* value,
+                 const LazyString& default_value)
+      : tagged_ptr_(value) {
+#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    assert(value->get().empty());
+    Set(absl::string_view(default_value.get()), arena);
+#endif
+  }
+
+  ArenaStringPtr(Arena* arena, const ArenaStringPtr& rhs)
+      : tagged_ptr_(rhs.tagged_ptr_.Copy(arena)) {}
 
   // Called from generated code / reflection runtime only. Resets value to point
   // to a default string pointer, with the semantics that this ArenaStringPtr
